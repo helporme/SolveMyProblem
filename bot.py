@@ -1,13 +1,16 @@
 import asyncio
+
 from os import environ
-from googletrans import Translator
+from googletrans import Translator, LANGUAGES
 
 from telebotapi.telebotapi import Bot
 from solvemyproblem.znanija import AsyncZnanija
 from solvemyproblem.tigeralgebra import AsyncTigerAlgebra
 from solvemyproblem.wikipedia import Wikipedia
 
-bot = Bot(environ('token'), prefix='')
+
+bot = Bot(environ('token'), prefix='', dest=None)
+DEV = [971379586]
 
 
 @bot.command_handler('start')
@@ -17,16 +20,21 @@ def start_message(message):
 
 
 @bot.command_handler()
-def test(message):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def info(message):
+    for key, value in message.update.items():
+        bot.send_message(message.chat.id, f'{key}: {value}')
 
-    bot.send_message(message.chat.id, 'test')
-    message = bot.wait_for_message(message.chat.id)
+        
+@bot.command_handler('eval', access_to=DEV)
+def _eval(message):
+    try:
+        res = eval(message.text)
+        bot.send_message(message.chat.id, res)
 
-    bot.send_message(message.chat.id, 'done ' + message.text)
+    except Exception as e:
+        bot.send_message(message.chat.id, str(e))
 
-
+        
 @bot.command_handler('z', 'з')
 def znanija_search(message):
     if message.text.replace(' ', '') == '':
@@ -66,8 +74,8 @@ def tigeralgebra_search(message):
         bot.send_message(message.chat.id, 'Напишите пример')
         message = bot.wait_for_message(message.chat.id)
 
-    sym_pass = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'
-    for sym in tuple(sym_pass):
+    sym_pass = tuple('абвгдеёжзийклмнопрстуфхцчшщъыьэюя')
+    for sym in sym_pass:
         if sym in message.text or sym.upper() in message.text:
             return False
 
@@ -85,47 +93,48 @@ def tigeralgebra_search(message):
     return True
 
 
-@bot.command_handler('с', 'сalc', 'к', access_to=[971379586])
-def calc(message):
-    if message.text.replace(' ', '') == '':
-        bot.send_message(message.chat.id, 'Напишите пример')
-        message = bot.wait_for_message(message.chat.id)
-
-    sym_pass = ['0', '1', '2', '3', '4', '5',
-                '6', '7', '8', '9', '+', '-',
-                '*', '/', '%', '(', ')', '.', ' ']
-    for sym in tuple(message.text):
-        if sym not in sym_pass:
-            return False
-
-    try:
-        answer = eval(message.text)
-        bot.send_message(message.chat.id, answer)
-    except:
-        return False
-    return True
-
-
 @bot.command_handler('tr', 'translate', 'тр', 'перевод')
 def translate(message):
     if message.text.replace(' ', '') == '':
-        bot.send_message(message.chat.id, 'Напишите на какой язык перевести, пример: "en"')
-        message = bot.wait_for_message(message.chat.id)
-        dest = message.text
+        if bot._else['dest'] is None:
+            bot.send_message(message.chat.id, 'Напишите на какой язык перевести, пример: "en"')
+            message = bot.wait_for_message(message.chat.id)
+            bot._else['dest'] = message.text
+        dest = bot._else['dest']
 
         bot.send_message(message.chat.id, 'Напишите текст')
         message = bot.wait_for_message(message.chat.id)
         text = message.text
 
     else:
-        dest, text = tuple(message.text.split(' ', 1))
+        args = message.text.split(' ', 1)
+        if len(args) == 1:
+            text = args[0]
+            dest = bot._else['dest']
+
+            if dest is None:
+                text = 'Стандартный язык для перевода не установлен, вы можете' \
+                       'выбрать его, написав /tr <язык> <текст> или /tr >> язык >> текст'
+                bot.send_message(message.chat.id, text)
+                return
+
+        else:
+            dest, text = tuple(args)
+
+            if dest in LANGUAGES:
+                bot._else['dest'] = dest
+            else:
+                dest = bot._else['dest'],
+                text = message.text
 
     translator = Translator()
     src = translator.detect(text).lang
 
     try:
         translation = translator.translate(text, src=src, dest=dest)
-        bot.send_message(message.chat.id, f'[{src.upper()} > {dest.upper()}]\n{translation.text}')
+        if translation.text != text:
+            bot.send_message(message.chat.id, f'[{src.upper()} > {dest.upper()}]\n{translation.text}')
+        return translation.text
     except ValueError:
         bot.send_message(message.chat.id, 'Неизвестный язык')
 
@@ -143,7 +152,7 @@ def wikipeida(message):
         return False
 
     text = '\n'.join([f'{n+1}. {key}' for n, key in enumerate(sections.keys())])
-    bot.send_message(message.chat.id, 'Выберете какие секции через запятую:\n' + text)
+    bot.send_message(message.chat.id, 'Выберете секции через запятую:\n' + text)
     message = bot.wait_for_message(message.chat.id)
 
     selected_sections = [int(n)-1 for n in message.text.replace(' ', '').split(',')]
@@ -159,9 +168,63 @@ def wikipeida(message):
     return True
 
 
+@bot.command_handler('m', 'morse', 'м', 'морзе')
+def morse(message):
+    if message.text.replace(' ', '') == '':
+        bot.send_message(message.chat.id, 'Напишите текст')
+        message = bot.wait_for_message(message.chat.id)
+
+    message.text = 'en ' + message.text
+    message.text = translate(message)
+
+    codes = {
+        '•-'   : 'A', '-•••' : 'B',
+        '-•-•' : 'C', '-••'  : 'D',
+        '•'    : 'E', '••-•' : 'F',
+        '--•'  : 'G', '••••' : 'H',
+        '••'   : 'I', '•---' : 'J',
+        '-•-'  : 'K', '•-••' : 'L',
+        '--'   : 'M', '-•'   : 'N',
+        '---'  : 'O', '•--•' : 'P',
+        '--•-' : 'Q', '•-•'  : 'R',
+        '•••'  : 'S', '-'    : 'T',
+        '••-'  : 'U', '•••-' : 'V',
+        '•--'  : 'W', '-••-' : 'X',
+        '-•--' : 'Y', '--••' : 'Z',
+        '•----': '1', '••---': '2',
+        '•••--': '3', '••••-': '4',
+        '•••••': '5', '-••••': '6',
+        '--•••': '7', '---••': '8',
+        '----•': '9', '-----': '0'
+    }
+
+    text_type = 'morse'
+    for sym in tuple(message.text):
+        if sym not in ['-', '•', ' ']:
+            text_type = 'text'
+
+    res = ''
+    if text_type == 'text':
+        for sym in tuple(message.text.upper()):
+            for key, value in codes.items():
+                if sym == value:
+                    res += key + ' '
+                    break
+
+    elif text_type == 'morse':
+        text = message.text.replace('   ', '<space>')
+        for sym in text.split(' '):
+            if sym in codes:
+                res += codes[sym]
+            elif sym == '<space>':
+                res += ' '
+
+    bot.send_message(message.chat.id, res)
+
+
 @bot.listener('wrong_commands')
 def solve(message):
-    for solver in [calc, tigeralgebra_search, wikipeida, znanija_search]:
+    for solver in [tigeralgebra_search, wikipeida, znanija_search]:
         res = solver(message)
         if res:
             return
