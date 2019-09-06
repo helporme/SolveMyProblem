@@ -1,11 +1,11 @@
 import sys
 import asyncio
 import aiohttp
+
 from os import path
 from bs4 import BeautifulSoup
 from arsenic import get_session, browsers, services
 from urllib.parse import quote
-
 from io import BytesIO
 from PIL import Image
 
