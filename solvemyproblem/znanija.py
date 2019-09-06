@@ -1,11 +1,11 @@
 import sys
 import asyncio
 import aiohttp
-
 from os import path
 from bs4 import BeautifulSoup
 from arsenic import get_session, browsers, services
 from urllib.parse import quote
+
 from io import BytesIO
 from PIL import Image
 
@@ -36,15 +36,27 @@ class AsyncZnanija:
             screen = await session.get_screenshot()
 
             await session.close()
-            return tasks, crop(screen)
+            return tasks, self.crop(screen)
 
-    async def fetch_url(self, session, url):
+    @staticmethod
+    async def fetch_url(session, url):
         async with session.get(url) as response:
             return await response.text()
 
-    async def fetch_image(self, session, url):
+    @staticmethod
+    async def fetch_image(session, url):
         async with session.get(url) as response:
             return await response.read()
+
+    @staticmethod
+    def crop(screen):
+        image = Image.open(screen)
+        area = (0, 60, 400, 1350)
+        image = image.crop(area)
+
+        sbytes = BytesIO()
+        image.save(sbytes, format='PNG')
+        return sbytes.getvalue()
 
     async def answer(self, task):
         async with aiohttp.ClientSession() as session:
@@ -72,13 +84,3 @@ class AsyncZnanija:
                 answers.append(answer)
 
             return answers, image
-
-
-def crop(screen):
-    image = Image.open(screen)
-    area = (0, 60, 400, 1350)
-    image = image.crop(area)
-
-    sbytes = BytesIO()
-    image.save(sbytes, format='PNG')
-    return sbytes.getvalue()
