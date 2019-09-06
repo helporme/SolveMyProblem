@@ -1,5 +1,6 @@
 import asyncio
 import sys
+
 from os import path
 from arsenic import get_session, browsers, services, keys
 
@@ -31,8 +32,7 @@ class AsyncTigerAlgebra:
             for stroke in text.split('\n')[2:]:
                 if 'Rearrange' in stroke or 'ends' in stroke:
                     break
-
-                elif 'Terminated' in stroke:
+                elif any(word in stroke for word in ['Terminated', 'Quadratic']):
                     return
 
                 answers.append(stroke[1:] if stroke.startswith(' ') else stroke)
