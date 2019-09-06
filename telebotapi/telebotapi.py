@@ -91,7 +91,7 @@ class Bot:
                 or self.prefix == '':
             message.text = message.text[len(self.prefix) if not message.text.startswith('/') else 1:]
             text = message.text.split(' ', 1)
-            command = text[0]
+            command = text[0].upper()
 
             if command in self.commands:
                 func = self.commands[command]
