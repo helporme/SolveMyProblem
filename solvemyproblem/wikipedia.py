@@ -1,6 +1,5 @@
 from wikipediaapi import Wikipedia as Wiki
 
-
 class Wikipedia:
     def __init__(self, title):
         self.wiki = Wiki('ru')
